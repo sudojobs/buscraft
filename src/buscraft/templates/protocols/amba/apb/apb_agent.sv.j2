@@ -1,0 +1,75 @@
+`ifndef APB_AGENT_SV
+`define APB_AGENT_SV
+
+`include "uvm_macros.svh"
+import uvm_pkg::*;
+import apb_pkg::*;
+
+class apb_sequencer extends uvm_sequencer #(apb_txn_t);
+  `uvm_component_utils(apb_sequencer)
+  function new(string name = "apb_sequencer", uvm_component parent = null);
+    super.new(name, parent);
+  endfunction
+endclass : apb_sequencer
+
+
+class apb_driver extends uvm_driver #(apb_txn_t);
+  `uvm_component_utils(apb_driver)
+  function new(string name = "apb_driver", uvm_component parent = null);
+    super.new(name, parent);
+  endfunction
+
+  virtual task run_phase(uvm_phase phase);
+    super.run_phase(phase);
+    // TODO: implement driving
+  endtask
+endclass : apb_driver
+
+
+class apb_monitor extends uvm_component;
+  `uvm_component_utils(apb_monitor)
+  uvm_analysis_port #(apb_txn_t) ap;
+
+  function new(string name = "apb_monitor", uvm_component parent = null);
+    super.new(name, parent);
+    ap = new("ap", this);
+  endfunction
+
+  virtual task run_phase(uvm_phase phase);
+    super.run_phase(phase);
+    // TODO: implement sampling
+  endtask
+endclass : apb_monitor
+
+
+class apb_agent extends uvm_agent;
+
+  `uvm_component_utils(apb_agent)
+
+  apb_sequencer m_sequencer;
+  apb_driver    m_driver;
+  apb_monitor   m_monitor;
+
+  function new(string name = "apb_agent", uvm_component parent = null);
+    super.new(name, parent);
+  endfunction : new
+
+  function void build_phase(uvm_phase phase);
+    super.build_phase(phase);
+    if (get_is_active() == UVM_ACTIVE) begin
+      m_sequencer = apb_sequencer::type_id::create("m_sequencer", this);
+      m_driver    = apb_driver   ::type_id::create("m_driver",    this);
+    end
+    m_monitor = apb_monitor::type_id::create("m_monitor", this);
+  endfunction : build_phase
+
+  function void connect_phase(uvm_phase phase);
+    super.connect_phase(phase);
+    if (get_is_active() == UVM_ACTIVE) begin
+      m_driver.seq_item_port.connect(m_sequencer.seq_item_export);
+    end
+  endfunction : connect_phase
+
+endclass : apb_agent
+
+`endif // APB_AGENT_SV

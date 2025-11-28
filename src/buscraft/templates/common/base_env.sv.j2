@@ -1,0 +1,58 @@
+`ifndef BUSCRAFT_ENV_SV
+`define BUSCRAFT_ENV_SV
+
+`include "uvm_macros.svh"
+import uvm_pkg::*;
+
+// Import all protocol packages (safe even if unused)
+import axi_pkg::*;
+import apb_pkg::*;
+import ahb_pkg::*;
+import i2c_pkg::*;
+import chi_pkg::*;
+
+class buscraft_env extends uvm_env;
+
+  `uvm_component_utils(buscraft_env)
+
+  // Agents by protocol type
+  {% for agent in context.agents %}
+  {% if agent.protocol_id == "amba_axi" %}
+  axi_agent {{ agent.name }};
+  {% elif agent.protocol_id == "amba_apb" %}
+  apb_agent {{ agent.name }};
+  {% elif agent.protocol_id == "amba_ahb" %}
+  ahb_agent {{ agent.name }};
+  {% elif agent.protocol_id == "serial_i2c" %}
+  i2c_agent {{ agent.name }};
+  {% elif agent.protocol_id == "amba_chi" %}
+  chi_agent {{ agent.name }};
+  {% else %}
+  // Unknown protocol {{ agent.protocol_id }} for agent {{ agent.name }}
+  {% endif %}
+  {% endfor %}
+
+  function new(string name = "buscraft_env", uvm_component parent = null);
+    super.new(name, parent);
+  endfunction : new
+
+  function void build_phase(uvm_phase phase);
+    super.build_phase(phase);
+    {% for agent in context.agents %}
+    {% if agent.protocol_id == "amba_axi" %}
+    {{ agent.name }} = axi_agent::type_id::create("{{ agent.name }}", this);
+    {% elif agent.protocol_id == "amba_apb" %}
+    {{ agent.name }} = apb_agent::type_id::create("{{ agent.name }}", this);
+    {% elif agent.protocol_id == "amba_ahb" %}
+    {{ agent.name }} = ahb_agent::type_id::create("{{ agent.name }}", this);
+    {% elif agent.protocol_id == "serial_i2c" %}
+    {{ agent.name }} = i2c_agent::type_id::create("{{ agent.name }}", this);
+    {% elif agent.protocol_id == "amba_chi" %}
+    {{ agent.name }} = chi_agent::type_id::create("{{ agent.name }}", this);
+    {% endif %}
+    {% endfor %}
+  endfunction : build_phase
+
+endclass : buscraft_env
+
+`endif // BUSCRAFT_ENV_SV

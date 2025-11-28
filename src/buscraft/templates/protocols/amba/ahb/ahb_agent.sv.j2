@@ -1,0 +1,75 @@
+`ifndef AHB_AGENT_SV
+`define AHB_AGENT_SV
+
+`include "uvm_macros.svh"
+import uvm_pkg::*;
+import ahb_pkg::*;
+
+class ahb_sequencer extends uvm_sequencer #(ahb_txn_t);
+  `uvm_component_utils(ahb_sequencer)
+  function new(string name = "ahb_sequencer", uvm_component parent = null);
+    super.new(name, parent);
+  endfunction
+endclass : ahb_sequencer
+
+
+class ahb_driver extends uvm_driver #(ahb_txn_t);
+  `uvm_component_utils(ahb_driver)
+  function new(string name = "ahb_driver", uvm_component parent = null);
+    super.new(name, parent);
+  endfunction
+
+  virtual task run_phase(uvm_phase phase);
+    super.run_phase(phase);
+    // TODO: implement driving
+  endtask
+endclass : ahb_driver
+
+
+class ahb_monitor extends uvm_component;
+  `uvm_component_utils(ahb_monitor)
+  uvm_analysis_port #(ahb_txn_t) ap;
+
+  function new(string name = "ahb_monitor", uvm_component parent = null);
+    super.new(name, parent);
+    ap = new("ap", this);
+  endfunction
+
+  virtual task run_phase(uvm_phase phase);
+    super.run_phase(phase);
+    // TODO: implement sampling
+  endtask
+endclass : ahb_monitor
+
+
+class ahb_agent extends uvm_agent;
+
+  `uvm_component_utils(ahb_agent)
+
+  ahb_sequencer m_sequencer;
+  ahb_driver    m_driver;
+  ahb_monitor   m_monitor;
+
+  function new(string name = "ahb_agent", uvm_component parent = null);
+    super.new(name, parent);
+  endfunction : new
+
+  function void build_phase(uvm_phase phase);
+    super.build_phase(phase);
+    if (get_is_active() == UVM_ACTIVE) begin
+      m_sequencer = ahb_sequencer::type_id::create("m_sequencer", this);
+      m_driver    = ahb_driver   ::type_id::create("m_driver",    this);
+    end
+    m_monitor = ahb_monitor::type_id::create("m_monitor", this);
+  endfunction : build_phase
+
+  function void connect_phase(uvm_phase phase);
+    super.connect_phase(phase);
+    if (get_is_active() == UVM_ACTIVE) begin
+      m_driver.seq_item_port.connect(m_sequencer.seq_item_export);
+    end
+  endfunction : connect_phase
+
+endclass : ahb_agent
+
+`endif // AHB_AGENT_SV

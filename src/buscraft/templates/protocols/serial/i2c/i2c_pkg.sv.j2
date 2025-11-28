@@ -1,0 +1,16 @@
+`ifndef I2C_PKG_SV
+`define I2C_PKG_SV
+
+package i2c_pkg;
+
+  import uvm_pkg::*;
+
+  typedef struct packed {
+    logic [6:0] addr;
+    logic [7:0] data;
+    logic       read;
+  } i2c_txn_t;
+
+endpackage : i2c_pkg
+
+`endif // I2C_PKG_SV

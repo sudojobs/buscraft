@@ -1,0 +1,16 @@
+`ifndef APB_PKG_SV
+`define APB_PKG_SV
+
+package apb_pkg;
+
+  import uvm_pkg::*;
+
+  typedef struct packed {
+    logic [15:0] addr;
+    logic [31:0] data;
+    logic        write;
+  } apb_txn_t;
+
+endpackage : apb_pkg
+
+`endif // APB_PKG_SV

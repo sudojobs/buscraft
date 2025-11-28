@@ -1,0 +1,75 @@
+`ifndef I2C_AGENT_SV
+`define I2C_AGENT_SV
+
+`include "uvm_macros.svh"
+import uvm_pkg::*;
+import i2c_pkg::*;
+
+class i2c_sequencer extends uvm_sequencer #(i2c_txn_t);
+  `uvm_component_utils(i2c_sequencer)
+  function new(string name = "i2c_sequencer", uvm_component parent = null);
+    super.new(name, parent);
+  endfunction
+endclass : i2c_sequencer
+
+
+class i2c_driver extends uvm_driver #(i2c_txn_t);
+  `uvm_component_utils(i2c_driver)
+  function new(string name = "i2c_driver", uvm_component parent = null);
+    super.new(name, parent);
+  endfunction
+
+  virtual task run_phase(uvm_phase phase);
+    super.run_phase(phase);
+    // TODO: implement driving
+  endtask
+endclass : i2c_driver
+
+
+class i2c_monitor extends uvm_component;
+  `uvm_component_utils(i2c_monitor)
+  uvm_analysis_port #(i2c_txn_t) ap;
+
+  function new(string name = "i2c_monitor", uvm_component parent = null);
+    super.new(name, parent);
+    ap = new("ap", this);
+  endfunction
+
+  virtual task run_phase(uvm_phase phase);
+    super.run_phase(phase);
+    // TODO: implement sampling
+  endtask
+endclass : i2c_monitor
+
+
+class i2c_agent extends uvm_agent;
+
+  `uvm_component_utils(i2c_agent)
+
+  i2c_sequencer m_sequencer;
+  i2c_driver    m_driver;
+  i2c_monitor   m_monitor;
+
+  function new(string name = "i2c_agent", uvm_component parent = null);
+    super.new(name, parent);
+  endfunction : new
+
+  function void build_phase(uvm_phase phase);
+    super.build_phase(phase);
+    if (get_is_active() == UVM_ACTIVE) begin
+      m_sequencer = i2c_sequencer::type_id::create("m_sequencer", this);
+      m_driver    = i2c_driver   ::type_id::create("m_driver",    this);
+    end
+    m_monitor = i2c_monitor::type_id::create("m_monitor", this);
+  endfunction : build_phase
+
+  function void connect_phase(uvm_phase phase);
+    super.connect_phase(phase);
+    if (get_is_active() == UVM_ACTIVE) begin
+      m_driver.seq_item_port.connect(m_sequencer.seq_item_export);
+    end
+  endfunction : connect_phase
+
+endclass : i2c_agent
+
+`endif // I2C_AGENT_SV
