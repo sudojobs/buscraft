@@ -11,3 +11,5 @@ dist/
 
 # System
 .DS_Store
+my_test_project.json
+test_llama.py
