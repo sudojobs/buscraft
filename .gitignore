@@ -1,0 +1,15 @@
+# Intepreters and Virtual Environments
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Distribution / Packaging
+build/
+dist/
+*.egg-info/
+
+# System
+.DS_Store
+my_test_project.json
+test_llama.py

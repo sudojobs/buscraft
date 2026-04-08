@@ -1,0 +1,32 @@
+# Minimal VCS Makefile for BusCraft demo
+
+TOP_ENV      ?= buscraft_env
+TOP_TEST     ?= buscraft_basic_test
+UVM_HOME     ?= $(UVM_HOME)
+
+SV_SRCS = \
+  ../axi_pkg.sv \
+  ../axi_agent.sv \
+  ../apb_pkg.sv \
+  ../apb_agent.sv \
+  ../ahb_pkg.sv \
+  ../ahb_agent.sv \
+  ../i2c_pkg.sv \
+  ../i2c_agent.sv \
+  ../chi_pkg.sv \
+  ../chi_agent.sv \
+  ../buscraft_env.sv
+
+all: simv
+
+simv:
+\tvcs -full64 -sverilog +vpi -ntb_opts uvm \
+\t    +incdir+$(UVM_HOME)/src \
+\t    $(SV_SRCS) \
+\t    -top $(TOP_TEST) -l compile.log
+
+run: simv
+\t./simv +UVM_TESTNAME=$(TOP_TEST) -l sim.log
+
+clean:
+\trm -rf simv simv.daidir csrc *.log DVEfiles

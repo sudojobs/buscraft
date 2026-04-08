@@ -1,0 +1,34 @@
+{
+  "name": "test_project",
+  "output_dir": "./buscraft_out",
+  "simulator": "vcs",
+  "global_params": {
+    "timescale": "1ns/1ps",
+    "reset_active_low": true,
+    "clock_name": "clk",
+    "reset_name": "rst_n"
+  },
+  "agents": [
+    {
+      "name": "axi_master",
+      "protocol_id": "amba_axi",
+      "role": "master",
+      "parameters": {
+        "addr_width": 32,
+        "data_width": 32,
+        "id_width": 4
+      },
+      "vip_mode": "full"
+    }
+  ],
+  "protocols_used": [
+    "amba_axi"
+  ],
+  "features": {
+    "scoreboard_enable": true,
+    "coverage_enable": true,
+    "assertions_enable": true,
+    "ai_assist_enable": false,
+    "sim_scripts_enable": true
+  }
+}
