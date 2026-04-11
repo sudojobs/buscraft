@@ -13,3 +13,6 @@ dist/
 .DS_Store
 my_test_project.json
 test_llama.py
+test_apb_spec.md
+buscraft_out/
+*_spec.json

@@ -154,13 +154,41 @@ def interactive_mode():
                     continue
                 
                 proj_name = Prompt.ask("[bold]  Project name[/bold] [dim](Enter to auto-detect)[/dim]", default="").strip()
-                gen_now = Prompt.ask("[bold]  Generate UVM code now?[/bold] [dim](y/n)[/dim]", default="n").strip().lower()
+                
+                # File selection menu
+                from buscraft.core.generator import FILE_CATEGORIES
+                console.print("\n[bold]  Select files to generate:[/bold]")
+                cat_list = list(FILE_CATEGORIES.items())
+                for i, (key, desc) in enumerate(cat_list, 1):
+                    console.print(f"    [cyan]{i:2d}[/cyan]. {key:12s} — [dim]{desc}[/dim]")
+                console.print(f"    [green] A[/green]. [bold]All files[/bold] [dim](full simulation-ready testbench)[/dim]")
+                console.print(f"    [yellow] D[/yellow]. [bold]Default[/bold]  [dim](agent + env + sim scripts)[/dim]")
+                
+                selection = Prompt.ask("\n[bold]  Enter choice[/bold] [dim](numbers separated by commas, A for all, D for default)[/dim]", default="A").strip()
+                
+                selected = set()
+                if selection.upper() == "A":
+                    selected = set(FILE_CATEGORIES.keys())
+                elif selection.upper() == "D":
+                    from buscraft.core.generator import MINIMAL_FILES
+                    selected = MINIMAL_FILES
+                else:
+                    for part in selection.split(","):
+                        part = part.strip()
+                        if part.isdigit():
+                            idx = int(part) - 1
+                            if 0 <= idx < len(cat_list):
+                                selected.add(cat_list[idx][0])
+                
+                gen_now = Prompt.ask("[bold]  Generate UVM code now?[/bold] [dim](y/n)[/dim]", default="y").strip().lower()
                 
                 args = ["spec", spec_path]
                 if proj_name:
                     args += ["--name", proj_name]
                 if gen_now in ("y", "yes"):
                     args += ["--generate"]
+                # Store selection for the spec command to pick up
+                os.environ["BUSCRAFT_GEN_FILES"] = ",".join(selected)
                 
                 console.print()
             
@@ -579,9 +607,16 @@ def list_protocols():
 @app.command()
 def visualize(
     project_file: str = typer.Argument(..., help="Path to project JSON file"),
-    output: Optional[str] = typer.Option(None, "--output", "-o", help="Output file path (default: project_name_diagram.png)"),
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="Output directory for diagrams"),
+    diagram_type: str = typer.Option("all", "--type", "-t", help="Diagram type: block, sequence, state, all"),
+    fmt: str = typer.Option("png", "--format", "-f", help="Output format: png, svg, pdf"),
 ):
-    """Generate a block diagram visualization of the project."""
+    """Generate architecture diagrams (Graphviz + PlantUML) and GTKWave config."""
+    from buscraft.core.visualizer import (
+        generate_diagram, generate_puml_sequence, generate_puml_state,
+        generate_gtkwave_savefile, render_puml,
+    )
+    
     try:
         project = load_project(project_file)
     except FileNotFoundError:
@@ -595,39 +630,72 @@ def visualize(
         console.print("[yellow]Warning:[/yellow] No agents in project. Nothing to visualize.")
         raise typer.Exit(0)
     
-    if output is None:
-        output = f"{project.name}_diagram.png"
+    out_dir = output or f"{project.name}_diagrams"
+    import os
+    os.makedirs(out_dir, exist_ok=True)
     
-    console.print(f"\n[bold]Generating diagram for:[/bold] [cyan]{project.name}[/cyan]")
+    console.print(f"\n[bold]Generating diagrams for:[/bold] [cyan]{project.name}[/cyan]\n")
+    
+    generated = []
     
     try:
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            task = progress.add_task("Creating visualization...", total=None)
+        # --- Graphviz Block Diagram ---
+        if diagram_type in ("block", "all"):
+            with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console) as progress:
+                progress.add_task("🏗️  Generating Graphviz block diagram...", total=None)
+                block_path = generate_diagram(project, f"{out_dir}/{project.name}_architecture", fmt=fmt)
+                generated.append(("Block diagram (Graphviz)", block_path))
+        
+        # --- PlantUML Sequence Diagram ---
+        if diagram_type in ("sequence", "all"):
+            console.print("  📝 Generating PlantUML sequence diagram...")
+            seq_path = generate_puml_sequence(project, f"{out_dir}/{project.name}_sequence")
+            generated.append(("Sequence diagram (.puml)", seq_path))
             
-            output_path = generate_diagram(project, output)
+            # Try to render to image
+            rendered = render_puml(seq_path, fmt=fmt)
+            if rendered:
+                generated.append(("Sequence diagram (rendered)", rendered))
+        
+        # --- PlantUML State Diagram ---
+        if diagram_type in ("state", "all"):
+            console.print("  📝 Generating PlantUML state diagram...")
+            state_path = generate_puml_state(project, f"{out_dir}/{project.name}_state")
+            generated.append(("State diagram (.puml)", state_path))
             
-            progress.update(task, completed=True)
+            rendered = render_puml(state_path, fmt=fmt)
+            if rendered:
+                generated.append(("State diagram (rendered)", rendered))
         
-        console.print(f"\n[bold green]✓[/bold green] Diagram generated: [cyan]{output_path}[/cyan]")
+        # --- GTKWave Save File ---
+        if diagram_type == "all":
+            console.print("  📊 Generating GTKWave signal config...")
+            gtkw_path = generate_gtkwave_savefile(project, f"{out_dir}/{project.name}_waves")
+            generated.append(("GTKWave config (.gtkw)", gtkw_path))
         
-        # Auto-open the image based on OS
-        import sys
-        import subprocess
+        # --- Summary ---
+        console.print(f"\n[bold green]✓ Generated {len(generated)} files:[/bold green]\n")
+        for label, path in generated:
+            console.print(f"  [green]✓[/green] [dim]{label}:[/dim] [cyan]{path}[/cyan]")
         
-        if sys.platform == "darwin":      # macOS
-            subprocess.run(["open", output_path])
-        elif sys.platform == "win32":     # Windows
-            import os
-            os.startfile(output_path)
-        else:                             # Linux/Unix
-            subprocess.run(["xdg-open", output_path])
+        # Auto-open the block diagram
+        block_files = [p for l, p in generated if "Block" in l]
+        if block_files:
+            import sys
+            import subprocess
+            if sys.platform == "darwin":
+                subprocess.run(["open", block_files[0]])
+            elif sys.platform == "win32":
+                os.startfile(block_files[0])
+            else:
+                subprocess.run(["xdg-open", block_files[0]])
+        
+        if any(".puml" in p for _, p in generated):
+            console.print(f"\n[dim]Render .puml files at: https://www.plantuml.com/plantuml/uml/[/dim]")
+            console.print(f"[dim]Or install PlantUML: brew install plantuml[/dim]")
             
     except Exception as e:
-        console.print(f"\n[bold red]Error:[/bold red] Failed to generate diagram: {e}")
+        console.print(f"\n[bold red]Error:[/bold red] Failed to generate diagrams: {e}")
         console.print("[dim]Make sure Graphviz is installed on your system.[/dim]")
         raise typer.Exit(1)
 
@@ -744,6 +812,7 @@ def spec(
     simulator: str = typer.Option("vcs", "--simulator", "-s", help="Target simulator"),
     save_to: Optional[str] = typer.Option(None, "--save", help="Save generated project JSON to file"),
     generate_code: bool = typer.Option(False, "--generate", "-g", help="Immediately generate UVM code after analysis"),
+    deep: bool = typer.Option(False, "--deep", "-d", help="Use AI-powered deep analysis (slower but handles unknown protocols)"),
 ):
     """Analyze an IP spec sheet and auto-generate a complete UVM project."""
     from buscraft.core.spec_parser import parse_spec, chunk_text
@@ -770,25 +839,14 @@ def spec(
         console.print(f"[bold red]Error:[/bold red] Failed to read spec: {e}")
         raise typer.Exit(1)
     
-    chunks = chunk_text(raw_text)
-    console.print(f"[green]✓[/green] Extracted {len(raw_text):,} characters → {len(chunks)} analysis chunks")
+    console.print(f"[green]✓[/green] Extracted {len(raw_text):,} characters")
     
-    # --- Stage 2: AI Analysis ---
-    console.print(f"\n[bold cyan]🧠 Starting AI-powered spec analysis...[/bold cyan]")
-    
-    llm = get_llm()
-    if not llm:
-        console.print("[bold red]Error:[/bold red] AI backend not available. Cannot analyze spec.")
-        console.print("[dim]Run 'buscraftcli install' to set up the AI model.[/dim]")
-        raise typer.Exit(1)
-    
+    # --- Stage 2: Analysis ---
     analysis_messages = [
         "🔬 Scanning for signal definitions...",
         "🧬 Decoding protocol handshake patterns...",
         "📐 Mapping register address space...",
         "⚡ Extracting timing constraints...",
-        "🔩 Identifying transfer modes...",
-        "🧪 Classifying error conditions...",
     ]
     msg_idx = [0]
     
@@ -797,10 +855,21 @@ def spec(
         console.print(f"  [magenta]{analysis_messages[idx]}[/magenta] [dim]({stage})[/dim]")
         msg_idx[0] += 1
     
+    if deep:
+        console.print(f"\n[bold cyan]🧠 Deep AI-powered analysis...[/bold cyan] [dim](this may take a while)[/dim]")
+        llm = get_llm()
+        if not llm:
+            console.print("[bold red]Error:[/bold red] AI backend not available for deep analysis.")
+            console.print("[dim]Run 'buscraftcli install' or try without --deep[/dim]")
+            raise typer.Exit(1)
+    else:
+        console.print(f"\n[bold cyan]⚡ Fast pattern-matching analysis...[/bold cyan]")
+        llm = None
+    
     try:
-        spec_model = analyze_spec(llm, chunks, on_progress=on_progress)
+        spec_model = analyze_spec(raw_text, llm=llm, on_progress=on_progress, deep=deep)
     except Exception as e:
-        console.print(f"\n[bold red]AI Analysis Error:[/bold red] {e}")
+        console.print(f"\n[bold red]Analysis Error:[/bold red] {e}")
         raise typer.Exit(1)
     
     # --- Stage 3: Show results ---
@@ -839,12 +908,22 @@ def spec(
     # --- Optional: Generate code immediately ---
     if generate_code:
         console.print(f"\n[bold cyan]🚀 Generating UVM code...[/bold cyan]")
+        
+        # Read file selection from interactive wizard (or default to all)
+        import os
+        gen_files_env = os.environ.pop("BUSCRAFT_GEN_FILES", "")
+        if gen_files_env:
+            selected_files = set(gen_files_env.split(","))
+        else:
+            from buscraft.core.generator import FULL_FILES
+            selected_files = FULL_FILES
+        
         try:
             gen = Generator(project)
-            output_files = gen.generate_all()
-            console.print(f"[bold green]✓[/bold green] Generated {len(output_files)} files in [cyan]{output_dir}[/cyan]")
+            output_files = gen.generate_all(selected_files=selected_files)
+            console.print(f"\n[bold green]✓[/bold green] Generated {len(output_files)} files in [cyan]{output_dir}[/cyan]\n")
             for file_type, file_path in output_files.items():
-                console.print(f"  [dim]{file_type}:[/dim] {file_path}")
+                console.print(f"  [green]✓[/green] [dim]{file_type}:[/dim] {file_path}")
         except Exception as e:
             console.print(f"[bold red]Generation Error:[/bold red] {e}")
             console.print(f"[dim]You can retry with: buscraftcli generate {save_to} --verbose[/dim]")
