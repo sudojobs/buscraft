@@ -80,9 +80,9 @@ def interactive_mode():
     with console.status("[dim]Initializing AI backend (CPU fallback logic)...[/dim]"):
         llm = get_llm()
         if llm:
-            console.print("[green]✓ AI Backend ready. Try asking a question![/green]")
+            console.print("[green]* AI Backend ready. Try asking a question![/green]")
         else:
-            console.print("[yellow]⚠ AI Backend not available. Operating as standard CLI.[/yellow]")
+            console.print("[yellow]! AI Backend not available. Operating as standard CLI.[/yellow]")
 
     console.print("Type a CLI command (e.g., 'new', 'info') or ask the AI. Type 'exit' to leave.\n")
     
@@ -137,7 +137,7 @@ def interactive_mode():
             
             # Interactive file picker for 'spec' command when no arguments given
             if cmd_name == "spec" and len(args) == 1:
-                console.print("\n[bold cyan]📄 Spec-to-Code Generator[/bold cyan]")
+                console.print("\n[bold cyan]Spec-to-Code Generator[/bold cyan]")
                 console.print("[dim]Drag a file from Finder into this terminal, or type the path:[/dim]\n")
                 
                 spec_path = Prompt.ask("[bold]  Spec file path[/bold]").strip()
@@ -216,16 +216,16 @@ def interactive_mode():
                     
                     import random
                     craft_messages = [
-                        "⚙️  Architecting verification components...",
-                        "🔧 Forging UVM infrastructure...",
-                        "🏗️  Constructing testbench scaffolding...",
-                        "✨ Weaving SystemVerilog magic...",
-                        "🧬 Synthesizing verification logic...",
-                        "🔩 Assembling protocol handlers...",
-                        "🛠️  Engineering signal interfaces...",
-                        "⚡ Generating IEEE 1800.2 compliant code...",
-                        "🧪 Brewing verification sequences...",
-                        "🚀 Crafting production-grade UVM modules...",
+                        "Architecting verification components...",
+                        "Forging UVM infrastructure...",
+                        "Constructing testbench scaffolding...",
+                        "Weaving SystemVerilog magic...",
+                        "Synthesizing verification logic...",
+                        "Assembling protocol handlers...",
+                        "Engineering signal interfaces...",
+                        "Generating IEEE 1800.2 compliant code...",
+                        "Brewing verification sequences...",
+                        "Crafting production-grade UVM modules...",
                     ]
                     
                     while True:
@@ -287,10 +287,10 @@ def interactive_mode():
                                 os.makedirs(os.path.dirname(filename), exist_ok=True) if os.path.dirname(filename) else None
                                 with open(filename, "w") as f:
                                     f.write(code_content + "\n")
-                                console.print(f"[bold green]✓ Saved file:[/bold green] [cyan]{filename}[/cyan] (in {os.getcwd()})")
+                                console.print(f"[bold green]* Saved file:[/bold green] [cyan]{filename}[/cyan] (in {os.getcwd()})")
                                 saved_files += 1
                             except Exception as e:
-                                console.print(f"[bold red]✗ Failed to save {filename}:[/bold red] {e}")
+                                console.print(f"[bold red]x Failed to save {filename}:[/bold red] {e}")
                         
                         if saved_files > 0:
                             console.print(f"[dim]Auto-saved {saved_files} file(s) to current directory.[/dim]\n")
@@ -301,7 +301,7 @@ def interactive_mode():
                         
                         if bash_match:
                             cmd = bash_match.group(1).strip()
-                            console.print(f"[bold yellow]⚡ Executing Bash:[/bold yellow] {cmd}")
+                            console.print(f"[bold yellow]Executing Bash:[/bold yellow] {cmd}")
                             try:
                                 result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
                                 output = (result.stdout + result.stderr).strip()
@@ -316,7 +316,7 @@ def interactive_mode():
                             
                         elif read_match:
                             filepath = read_match.group(1).strip()
-                            console.print(f"[bold cyan]📖 Reading File:[/bold cyan] {filepath}")
+                            console.print(f"[bold cyan]Reading File:[/bold cyan] {filepath}")
                             try:
                                 with open(filepath, "r") as f:
                                     output = f.read()
@@ -393,14 +393,14 @@ def new(
     if no_assertions: project.features["assertions_enable"] = False
     if no_sim_scripts: project.features["sim_scripts_enable"] = False
     
-    console.print(f"\n[bold green]✓[/bold green] Created new project: [bold]{name}[/bold]")
+    console.print(f"\n[bold green]*[/bold green] Created new project: [bold]{name}[/bold]")
     console.print(f"  Output directory: [cyan]{output_dir}[/cyan]")
     console.print(f"  Simulator: [cyan]{simulator}[/cyan]")
     
     if save_to:
         save_path = Path(save_to)
         save_project(project, save_path)
-        console.print(f"\n[bold green]✓[/bold green] Saved project to: [cyan]{save_path}[/cyan]")
+        console.print(f"\n[bold green]*[/bold green] Saved project to: [cyan]{save_path}[/cyan]")
     else:
         console.print("\n[dim]Use --save to save the project configuration.[/dim]")
 
@@ -445,11 +445,11 @@ def add_agent(
     
     save_project(project, project_file)
     
-    console.print(f"\n[bold green]✓[/bold green] Added agent: [bold]{name}[/bold]")
+    console.print(f"\n[bold green]*[/bold green] Added agent: [bold]{name}[/bold]")
     console.print(f"  Protocol: [cyan]{protocol}[/cyan] ({plugin.label})")
     console.print(f"  Role: [cyan]{role}[/cyan]")
     console.print(f"  VIP Mode: [cyan]{vip_mode}[/cyan]")
-    console.print(f"\n[bold green]✓[/bold green] Updated project: [cyan]{project_file}[/cyan]")
+    console.print(f"\n[bold green]*[/bold green] Updated project: [cyan]{project_file}[/cyan]")
 
 
 @app.command()
@@ -484,7 +484,7 @@ def generate(
             
             progress.update(task, completed=True)
         
-        console.print(f"\n[bold green]✓[/bold green] Generation complete!")
+        console.print(f"\n[bold green]*[/bold green] Generation complete!")
         console.print(f"  Output directory: [cyan]{project.output_dir}[/cyan]")
         console.print(f"  Files generated: [bold]{len(output_files)}[/bold]\n")
         
@@ -543,7 +543,7 @@ def info(
         features_table.add_column("Status")
         
         for feature, enabled in project.features.items():
-            status = "[green]✓ Enabled[/green]" if enabled else "[dim]✗ Disabled[/dim]"
+            status = "[green]* Enabled[/green]" if enabled else "[dim]x Disabled[/dim]"
             features_table.add_row(feature, status)
         
         console.print(features_table)
@@ -642,13 +642,13 @@ def visualize(
         # --- Graphviz Block Diagram ---
         if diagram_type in ("block", "all"):
             with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console) as progress:
-                progress.add_task("🏗️  Generating Graphviz block diagram...", total=None)
+                progress.add_task("Generating Graphviz block diagram...", total=None)
                 block_path = generate_diagram(project, f"{out_dir}/{project.name}_architecture", fmt=fmt)
                 generated.append(("Block diagram (Graphviz)", block_path))
         
         # --- PlantUML Sequence Diagram ---
         if diagram_type in ("sequence", "all"):
-            console.print("  📝 Generating PlantUML sequence diagram...")
+            console.print("  Generating PlantUML sequence diagram...")
             seq_path = generate_puml_sequence(project, f"{out_dir}/{project.name}_sequence")
             generated.append(("Sequence diagram (.puml)", seq_path))
             
@@ -659,7 +659,7 @@ def visualize(
         
         # --- PlantUML State Diagram ---
         if diagram_type in ("state", "all"):
-            console.print("  📝 Generating PlantUML state diagram...")
+            console.print("  Generating PlantUML state diagram...")
             state_path = generate_puml_state(project, f"{out_dir}/{project.name}_state")
             generated.append(("State diagram (.puml)", state_path))
             
@@ -669,14 +669,14 @@ def visualize(
         
         # --- GTKWave Save File ---
         if diagram_type == "all":
-            console.print("  📊 Generating GTKWave signal config...")
+            console.print("  Generating GTKWave signal config...")
             gtkw_path = generate_gtkwave_savefile(project, f"{out_dir}/{project.name}_waves")
             generated.append(("GTKWave config (.gtkw)", gtkw_path))
         
         # --- Summary ---
-        console.print(f"\n[bold green]✓ Generated {len(generated)} files:[/bold green]\n")
+        console.print(f"\n[bold green]* Generated {len(generated)} files:[/bold green]\n")
         for label, path in generated:
-            console.print(f"  [green]✓[/green] [dim]{label}:[/dim] [cyan]{path}[/cyan]")
+            console.print(f"  [green]*[/green] [dim]{label}:[/dim] [cyan]{path}[/cyan]")
         
         # Auto-open the block diagram
         block_files = [p for l, p in generated if "Block" in l]
@@ -720,12 +720,12 @@ def config(
     
     if set_simulator:
         project.simulator = set_simulator
-        console.print(f"[green]✓[/green] Changed simulator to: [cyan]{set_simulator}[/cyan]")
+        console.print(f"[green]*[/green] Changed simulator to: [cyan]{set_simulator}[/cyan]")
         modified = True
         
     if set_output:
         project.output_dir = set_output
-        console.print(f"[green]✓[/green] Changed output directory to: [cyan]{set_output}[/cyan]")
+        console.print(f"[green]*[/green] Changed output directory to: [cyan]{set_output}[/cyan]")
         modified = True
         
     if modified:
@@ -824,7 +824,7 @@ def spec(
     show_banner()
     
     # --- Stage 1: Ingest the spec ---
-    console.print(f"\n[bold cyan]📄 Reading specification:[/bold cyan] {spec_file}")
+    console.print(f"\n[bold cyan]Reading specification:[/bold cyan] {spec_file}")
     
     try:
         raw_text = parse_spec(spec_file)
@@ -839,48 +839,51 @@ def spec(
         console.print(f"[bold red]Error:[/bold red] Failed to read spec: {e}")
         raise typer.Exit(1)
     
-    console.print(f"[green]✓[/green] Extracted {len(raw_text):,} characters")
+    console.print(f"[green]*[/green] Extracted {len(raw_text):,} characters")
     
     # --- Stage 2: Analysis ---
     analysis_messages = [
-        "🔬 Scanning for signal definitions...",
-        "🧬 Decoding protocol handshake patterns...",
-        "📐 Mapping register address space...",
-        "⚡ Extracting timing constraints...",
+        "Scanning for signal definitions...",
+        "Decoding protocol handshake patterns...",
+        "Mapping register address space...",
+        "Extracting timing constraints...",
     ]
     msg_idx = [0]
     
-    def on_progress(stage: str, current: int, total: int):
-        idx = msg_idx[0] % len(analysis_messages)
-        console.print(f"  [magenta]{analysis_messages[idx]}[/magenta] [dim]({stage})[/dim]")
-        msg_idx[0] += 1
-    
     if deep:
-        console.print(f"\n[bold cyan]🧠 Deep AI-powered analysis...[/bold cyan] [dim](this may take a while)[/dim]")
+        status_msg = "[bold cyan]Deep AI-powered analysis...[/bold cyan] [dim](this may take a while)[/dim]"
         llm = get_llm()
         if not llm:
             console.print("[bold red]Error:[/bold red] AI backend not available for deep analysis.")
             console.print("[dim]Run 'buscraftcli install' or try without --deep[/dim]")
             raise typer.Exit(1)
     else:
-        console.print(f"\n[bold cyan]⚡ Fast pattern-matching analysis...[/bold cyan]")
+        status_msg = "[bold cyan]Fast pattern-matching analysis...[/bold cyan]"
         llm = None
     
     try:
-        spec_model = analyze_spec(raw_text, llm=llm, on_progress=on_progress, deep=deep)
+        # Claude Code style sleek dynamic spinner
+        with console.status(status_msg, spinner="dots", spinner_style="bold magenta") as status:
+            def on_progress(stage: str, current: int, total: int):
+                idx = msg_idx[0] % len(analysis_messages)
+                status.update(f"{status_msg}\n  [magenta]{analysis_messages[idx]}[/magenta] [dim]({stage})[/dim]")
+                msg_idx[0] += 1
+                
+            spec_model = analyze_spec(raw_text, llm=llm, on_progress=on_progress, deep=deep)
+            
     except Exception as e:
         console.print(f"\n[bold red]Analysis Error:[/bold red] {e}")
         raise typer.Exit(1)
     
     # --- Stage 3: Show results ---
-    console.print(f"\n[bold green]✓ Specification analysis complete![/bold green]\n")
+    console.print(f"\n[bold green]* Specification analysis complete![/bold green]\n")
     
     summary = spec_summary(spec_model)
     from rich.panel import Panel
     console.print(Panel(summary, title="[bold]Extracted Spec Summary[/bold]", border_style="cyan"))
     
     # --- Stage 4: Convert to project ---
-    console.print(f"\n[bold cyan]🏗️  Assembling BusCraft project...[/bold cyan]")
+    console.print(f"\n[bold cyan]Assembling BusCraft project...[/bold cyan]")
     
     project = spec_to_project(
         spec_model,
@@ -889,7 +892,7 @@ def spec(
         simulator=simulator,
     )
     
-    console.print(f"[green]✓[/green] Project: [bold]{project.name}[/bold]")
+    console.print(f"[green]*[/green] Project: [bold]{project.name}[/bold]")
     console.print(f"  Protocol: [cyan]{project.protocols_used[0] if project.protocols_used else 'unknown'}[/cyan]")
     console.print(f"  Agents:   [cyan]{len(project.agents)}[/cyan]")
     console.print(f"  Simulator: [cyan]{project.simulator}[/cyan]")
@@ -897,17 +900,17 @@ def spec(
     # --- Save project JSON ---
     if save_to:
         save_project(project, save_to)
-        console.print(f"\n[bold green]✓[/bold green] Saved project to: [cyan]{save_to}[/cyan]")
+        console.print(f"\n[bold green]*[/bold green] Saved project to: [cyan]{save_to}[/cyan]")
     else:
         # Auto-save with a default name
         default_save = f"{project.name}_spec.json"
         save_project(project, default_save)
-        console.print(f"\n[bold green]✓[/bold green] Auto-saved project to: [cyan]{default_save}[/cyan]")
+        console.print(f"\n[bold green]*[/bold green] Auto-saved project to: [cyan]{default_save}[/cyan]")
         save_to = default_save
     
     # --- Optional: Generate code immediately ---
     if generate_code:
-        console.print(f"\n[bold cyan]🚀 Generating UVM code...[/bold cyan]")
+        console.print(f"\n[bold cyan]Generating UVM code...[/bold cyan]")
         
         # Read file selection from interactive wizard (or default to all)
         import os
@@ -921,9 +924,9 @@ def spec(
         try:
             gen = Generator(project)
             output_files = gen.generate_all(selected_files=selected_files)
-            console.print(f"\n[bold green]✓[/bold green] Generated {len(output_files)} files in [cyan]{output_dir}[/cyan]\n")
+            console.print(f"\n[bold green]*[/bold green] Generated {len(output_files)} files in [cyan]{output_dir}[/cyan]\n")
             for file_type, file_path in output_files.items():
-                console.print(f"  [green]✓[/green] [dim]{file_type}:[/dim] {file_path}")
+                console.print(f"  [green]*[/green] [dim]{file_type}:[/dim] {file_path}")
         except Exception as e:
             console.print(f"[bold red]Generation Error:[/bold red] {e}")
             console.print(f"[dim]You can retry with: buscraftcli generate {save_to} --verbose[/dim]")
@@ -945,36 +948,36 @@ def install():
     # 1. Graphviz
     console.print("\n[bold]1. Checking Graphviz (for block diagram generation)...[/bold]")
     if shutil.which("dot"):
-        console.print("[green]✓ Graphviz is already installed.[/green]")
+        console.print("[green]* Graphviz is already installed.[/green]")
     else:
         if sys.platform == "darwin":
             if shutil.which("brew"):
                 console.print("[yellow]Graphviz not found. Installing via Homebrew...[/yellow]")
                 subprocess.run(["brew", "install", "graphviz"])
-                console.print("[green]✓ Graphviz installed successfully.[/green]")
+                console.print("[green]* Graphviz installed successfully.[/green]")
             else:
-                console.print("[red]✗ Homebrew not found. Please install Graphviz manually.[/red]")
+                console.print("[red]x Homebrew not found. Please install Graphviz manually.[/red]")
         elif sys.platform == "linux":
             console.print("[yellow]Graphviz not found. Please run: sudo apt-get install graphviz[/yellow]")
         else:
-            console.print("[red]✗ Graphviz not found. Please install it manually for your OS.[/red]")
+            console.print("[red]x Graphviz not found. Please install it manually for your OS.[/red]")
             
     # 2. GTKWave
     console.print("\n[bold]2. Checking GTKWave (for waveform viewing)...[/bold]")
     if shutil.which("gtkwave"):
-        console.print("[green]✓ GTKWave is already installed.[/green]")
+        console.print("[green]* GTKWave is already installed.[/green]")
     else:
         if sys.platform == "darwin":
             if shutil.which("brew"):
                 console.print("[yellow]GTKWave not found. Installing via Homebrew...[/yellow]")
                 subprocess.run(["brew", "install", "--cask", "gtkwave"])
-                console.print("[green]✓ GTKWave installed successfully.[/green]")
+                console.print("[green]* GTKWave installed successfully.[/green]")
             else:
-                console.print("[red]✗ Homebrew not found. Please install GTKWave manually.[/red]")
+                console.print("[red]x Homebrew not found. Please install GTKWave manually.[/red]")
         elif sys.platform == "linux":
             console.print("[yellow]GTKWave not found. Please run: sudo apt-get install gtkwave[/yellow]")
         else:
-            console.print("[red]✗ GTKWave not found. Please install it manually for your OS.[/red]")
+            console.print("[red]x GTKWave not found. Please install it manually for your OS.[/red]")
             
     # 3. Local AI Model
     console.print("\n[bold]3. Verifying Local AI Model (Qwen Coder 7B)...[/bold]")
@@ -985,9 +988,9 @@ def install():
             repo_id="Qwen/Qwen2.5-Coder-7B-Instruct-GGUF",
             filename="qwen2.5-coder-7b-instruct-q4_k_m.gguf"
         )
-        console.print(f"[green]✓ AI Model verified and cached at:[/green] [dim]{model_path}[/dim]")
+        console.print(f"[green]* AI Model verified and cached at:[/green] [dim]{model_path}[/dim]")
     except Exception as e:
-        console.print(f"[red]✗ Failed to download/verify AI model: {e}[/red]")
+        console.print(f"[red]x Failed to download/verify AI model: {e}[/red]")
         
     console.print("\n[bold green]BusCraft setup complete![/bold green]")
     console.print("[dim]You can now use the 'buscraft' or 'buscraftcli' commands anywhere on your system.[/dim]")

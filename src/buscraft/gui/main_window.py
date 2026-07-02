@@ -1,43 +1,67 @@
+"""BusCraft Main Window — sidebar + content + status bar layout.
+
+Replaces the old QTabWidget design with a modern IDE-style layout:
+  NavRail (left) | Content (center) | StatusBar (bottom)
+"""
 from __future__ import annotations
+
+import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QTabWidget, QLabel,
-    QFileDialog, QMessageBox, QFormLayout, QLineEdit, QComboBox,
-    QCheckBox, QPushButton, QTextEdit, QHBoxLayout, QApplication,
-    QDialog
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+    QFileDialog, QMessageBox, QApplication, QDialog,
+    QStackedWidget, QSizePolicy,
 )
-from PySide6.QtGui import QAction, QPixmap
+from PySide6.QtGui import QAction
 from PySide6.QtCore import Qt
 
 from buscraft.core.models import Project
 from buscraft.core.project_io import load_project, save_project
 from buscraft.core.generator import Generator, GenerationError
 from buscraft.core.visualizer import generate_diagram
-from buscraft.core.license_manager import load_license, get_license_summary, LicenseInfo, create_demo_license
+from buscraft.core.license_manager import (
+    load_license, get_license_summary, LicenseInfo, create_demo_license,
+)
+from buscraft.gui.nav_rail import NavRail
+from buscraft.gui.status_bar import StatusBar
+from buscraft.gui.dashboard_panel import DashboardPanel
+from buscraft.gui.agents_panel import AgentsPanel
+from buscraft.gui.features_panel import FeaturesPanel
+from buscraft.gui.settings_panel import SettingsPanel
+from buscraft.gui.spec_import_panel import SpecImportPanel
+from buscraft.gui.visualize_panel import VisualizePanel
+from buscraft.gui.ai_panel import AIPanel
+from buscraft.gui.generate_dialog import GenerateDialog
 from buscraft.gui.project_wizard import ProjectWizard
-from buscraft.gui.protocol_config_panel import ProtocolConfigPanel
-from buscraft.core.ai_engine import DummyAIEngine
+from buscraft.gui.protocol_browser_dialog import ProtocolBrowserDialog
+from buscraft.gui.theme import C
+
+
+# Map nav keys to stack indices
+PAGE_KEYS = ["dashboard", "agents", "features", "spec", "visualize", "ai", "settings"]
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("BusCraft")
-        self.resize(1100, 700)
+        self.resize(1200, 760)
+        self.setMinimumSize(900, 600)
 
         self.project: Project | None = None
         self.current_project_path: Path | None = None
         self.license_info: LicenseInfo | None = create_demo_license()
-        self.ai_engine = DummyAIEngine()
 
         self._create_actions()
         self._create_menu()
         self._create_central()
 
-        self.statusBar().showMessage("Ready. Use File → New to create a project.")
+        self.statusBar().hide()  # Hide Qt's default status bar
 
-    # -------- UI construction --------
+    # ──────────────────────────────────────────────── UI Construction ──
 
     def _create_actions(self) -> None:
         self.act_new = QAction("&New", self)
@@ -46,11 +70,13 @@ class MainWindow(QMainWindow):
         self.act_save_as = QAction("Save &As...", self)
         self.act_exit = QAction("E&xit", self)
 
-        self.act_gen_code = QAction("Generate &Code", self)
+        self.act_gen_code = QAction("Generate &Code...", self)
         self.act_gen_diag = QAction("Generate &Diagram", self)
         self.act_load_license = QAction("&Load License...", self)
+        self.act_launch_wave = QAction("Launch &Waveform Viewer", self)
 
         self.act_about = QAction("&About", self)
+        self.act_protocols = QAction("&Protocol Browser...", self)
 
         self.act_new.triggered.connect(self.on_new_project)
         self.act_open.triggered.connect(self.on_open_project)
@@ -61,8 +87,17 @@ class MainWindow(QMainWindow):
         self.act_gen_code.triggered.connect(self.on_generate_code)
         self.act_gen_diag.triggered.connect(self.on_generate_diagram)
         self.act_load_license.triggered.connect(self.on_load_license)
+        self.act_launch_wave.triggered.connect(self.on_launch_waveform)
 
         self.act_about.triggered.connect(self.on_about)
+        self.act_protocols.triggered.connect(self.on_protocol_browser)
+
+        # Shortcuts
+        self.act_new.setShortcut("Ctrl+N")
+        self.act_open.setShortcut("Ctrl+O")
+        self.act_save.setShortcut("Ctrl+S")
+        self.act_save_as.setShortcut("Ctrl+Shift+S")
+        self.act_gen_code.setShortcut("Ctrl+G")
 
     def _create_menu(self) -> None:
         menubar = self.menuBar()
@@ -77,128 +112,153 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.act_exit)
 
         tools_menu = menubar.addMenu("&Tools")
-        tools_menu.addAction(self.act_load_license)
         tools_menu.addAction(self.act_gen_code)
         tools_menu.addAction(self.act_gen_diag)
+        tools_menu.addSeparator()
+        tools_menu.addAction(self.act_launch_wave)
+        tools_menu.addAction(self.act_load_license)
 
         help_menu = menubar.addMenu("&Help")
+        help_menu.addAction(self.act_protocols)
+        help_menu.addSeparator()
         help_menu.addAction(self.act_about)
 
     def _create_central(self) -> None:
-        central = QWidget(self)
+        central = QWidget()
+        central.setObjectName("centralWidget")
         self.setCentralWidget(central)
-        layout = QVBoxLayout(central)
 
-        self.tabs = QTabWidget(self)
-        layout.addWidget(self.tabs, stretch=3)
+        root_layout = QVBoxLayout(central)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
 
-        # --- Project Settings tab ---
-        self.tab_settings = QWidget()
-        form = QFormLayout(self.tab_settings)
-        self.ed_name = QLineEdit()
-        self.ed_output = QLineEdit()
-        self.btn_out_browse = QPushButton("Browse...")
-        self.cmb_sim = QComboBox()
-        self.cmb_sim.addItems(["vcs", "questa", "xcelium", "verilator"])
+        # ── Main area: NavRail + Content ──
+        main_area = QHBoxLayout()
+        main_area.setContentsMargins(0, 0, 0, 0)
+        main_area.setSpacing(0)
 
-        out_widget = QWidget()
-        out_layout = QHBoxLayout(out_widget)
-        out_layout.setContentsMargins(0, 0, 0, 0)
-        out_layout.addWidget(self.ed_output)
-        out_layout.addWidget(self.btn_out_browse)
+        # Nav rail
+        self.nav_rail = NavRail()
+        self.nav_rail.page_changed.connect(self._on_page_changed)
+        main_area.addWidget(self.nav_rail)
 
-        form.addRow("Project name:", self.ed_name)
-        form.addRow("Output directory:", out_widget)
-        form.addRow("Simulator:", self.cmb_sim)
+        # Content stack
+        self.stack = QStackedWidget()
+        self.stack.setObjectName("contentStack")
+        self.stack.setStyleSheet(f"""
+            QStackedWidget#contentStack {{
+                background: {C.BG_DARK};
+            }}
+        """)
 
-        self.btn_out_browse.clicked.connect(self._on_browse_output)
-        self.tabs.addTab(self.tab_settings, "Project Settings")
+        # Create pages in order matching PAGE_KEYS
+        self.dashboard = DashboardPanel()
+        self.dashboard.action_new_project.connect(self.on_new_project)
+        self.dashboard.action_import_spec.connect(lambda: self._navigate_to("spec"))
+        self.dashboard.action_generate.connect(self.on_generate_code)
+        self.dashboard.action_visualize.connect(lambda: self._navigate_to("visualize"))
+        self.dashboard.open_recent.connect(self._on_open_recent)
 
-        # --- Protocols & Agents tab ---
-        self.protocol_panel = ProtocolConfigPanel(self)
-        self.tabs.addTab(self.protocol_panel, "Protocols & Agents")
+        self.agents_panel = AgentsPanel()
+        self.agents_panel.agents_changed.connect(self._on_agents_changed)
 
-        # --- Features tab ---
-        self.tab_features = QWidget()
-        f_layout = QVBoxLayout(self.tab_features)
-        self.chk_scoreboard = QCheckBox("Generate Scoreboard")
-        self.chk_coverage = QCheckBox("Generate Coverage")
-        self.chk_assertions = QCheckBox("Generate Assertions")
-        self.chk_ai_assist = QCheckBox("Enable AI Assistance (stub)")
-        self.chk_sim_scripts = QCheckBox("Generate Simulator Scripts")
-        for c in (
-            self.chk_scoreboard,
-            self.chk_coverage,
-            self.chk_assertions,
-            self.chk_ai_assist,
-            self.chk_sim_scripts,
-        ):
-            f_layout.addWidget(c)
-        f_layout.addStretch()
-        self.tabs.addTab(self.tab_features, "Features & Coverage")
+        self.features_panel = FeaturesPanel()
 
-        # --- AI Assistant tab ---
-        self.tab_ai = QWidget()
-        ai_layout = QVBoxLayout(self.tab_ai)
-        self.ai_desc = QTextEdit()
-        self.ai_desc.setPlaceholderText("Describe the desired environment here...")
-        self.ai_log = QTextEdit()
-        self.ai_log.setReadOnly(True)
-        self.btn_ai_generate = QPushButton("Generate config from description (Dummy)")
-        ai_layout.addWidget(self.ai_desc)
-        ai_layout.addWidget(self.btn_ai_generate)
-        ai_layout.addWidget(QLabel("AI log:"))
-        ai_layout.addWidget(self.ai_log)
-        self.btn_ai_generate.clicked.connect(self.on_ai_generate)
-        self.tabs.addTab(self.tab_ai, "AI Assistant")
+        self.spec_panel = SpecImportPanel()
+        self.spec_panel.project_ready.connect(self._on_spec_project_imported)
 
-        # --- License Info tab ---
-        self.tab_license = QWidget()
-        lic_layout = QVBoxLayout(self.tab_license)
-        self.lic_text = QTextEdit()
-        self.lic_text.setReadOnly(True)
-        lic_layout.addWidget(self.lic_text)
-        self.tabs.addTab(self.tab_license, "License Info")
+        self.visualize_panel = VisualizePanel()
 
-        # --- Diagram view ---
-        self.diagram_label = QLabel("Diagram will appear here after generation.")
-        self.diagram_label.setAlignment(Qt.AlignCenter)
-        self.diagram_label.setMinimumHeight(200)
-        layout.addWidget(self.diagram_label, stretch=2)
+        self.ai_panel = AIPanel()
 
-        self._update_license_view()
+        self.settings_panel = SettingsPanel()
+        self.settings_panel.license_changed.connect(self._on_license_changed)
 
-    # -------- project <-> UI sync --------
+        # Add in PAGE_KEYS order
+        self.stack.addWidget(self.dashboard)     # 0: dashboard
+        self.stack.addWidget(self.agents_panel)   # 1: agents
+        self.stack.addWidget(self.features_panel) # 2: features
+        self.stack.addWidget(self.spec_panel)     # 3: spec
+        self.stack.addWidget(self.visualize_panel)# 4: visualize
+        self.stack.addWidget(self.ai_panel)       # 5: ai
+        self.stack.addWidget(self.settings_panel) # 6: settings
+
+        main_area.addWidget(self.stack, stretch=1)
+
+        root_layout.addLayout(main_area, stretch=1)
+
+        # ── Status bar ──
+        self.app_status_bar = StatusBar()
+        self.app_status_bar.generate_clicked.connect(self.on_generate_code)
+        root_layout.addWidget(self.app_status_bar)
+
+        # Set initial license display
+        self._update_status_bar()
+
+    # ──────────────────────────────────────────── Navigation ──
+
+    def _on_page_changed(self, key: str):
+        """Handle nav rail page change."""
+        if key in PAGE_KEYS:
+            self.stack.setCurrentIndex(PAGE_KEYS.index(key))
+
+    def _navigate_to(self, key: str):
+        """Programmatically navigate to a page."""
+        if key in PAGE_KEYS:
+            self.nav_rail.set_active(key)
+            self.stack.setCurrentIndex(PAGE_KEYS.index(key))
+
+    # ──────────────────────────────────────────── Project ↔ UI sync ──
 
     def _project_from_ui(self) -> None:
+        """Sync all UI panels back to the project object."""
         if not self.project:
             self.project = Project()
-        self.project.name = self.ed_name.text().strip() or "untitled"
-        self.project.output_dir = self.ed_output.text().strip() or "./buscraft_out"
-        self.project.simulator = self.cmb_sim.currentText()
-        self.project.features["scoreboard_enable"] = self.chk_scoreboard.isChecked()
-        self.project.features["coverage_enable"] = self.chk_coverage.isChecked()
-        self.project.features["assertions_enable"] = self.chk_assertions.isChecked()
-        self.project.features["ai_assist_enable"] = self.chk_ai_assist.isChecked()
-        self.project.features["sim_scripts_enable"] = self.chk_sim_scripts.isChecked()
-        self.protocol_panel.sync_to_project()
+        self.settings_panel.save_to_project(self.project)
+        self.agents_panel.sync_to_project()
+        self.features_panel.save_to_project(self.project)
 
     def _ui_from_project(self) -> None:
+        """Load project data into all UI panels."""
         if not self.project:
             return
-        self.ed_name.setText(self.project.name)
-        self.ed_output.setText(self.project.output_dir)
-        idx = self.cmb_sim.findText(self.project.simulator)
-        if idx >= 0:
-            self.cmb_sim.setCurrentIndex(idx)
-        self.chk_scoreboard.setChecked(self.project.features.get("scoreboard_enable", True))
-        self.chk_coverage.setChecked(self.project.features.get("coverage_enable", True))
-        self.chk_assertions.setChecked(self.project.features.get("assertions_enable", True))
-        self.chk_ai_assist.setChecked(self.project.features.get("ai_assist_enable", False))
-        self.chk_sim_scripts.setChecked(self.project.features.get("sim_scripts_enable", True))
-        self.protocol_panel.set_project(self.project)
+        self.settings_panel.load_from_project(self.project)
+        self.agents_panel.set_project(self.project)
+        self.features_panel.load_from_project(self.project)
+        self.visualize_panel.set_project(self.project)
+        self._update_dashboard()
+        self._update_status_bar()
 
-    # -------- slots --------
+    def _update_dashboard(self):
+        """Refresh dashboard stats."""
+        if self.project:
+            self.dashboard.update_stats(
+                agent_count=len(self.project.agents),
+                protocol_count=len(set(a.protocol_id for a in self.project.agents)),
+            )
+
+    def _update_status_bar(self):
+        """Refresh the bottom status bar."""
+        if self.project:
+            self.app_status_bar.set_project_info(
+                self.project.name,
+                len(self.project.agents),
+            )
+        else:
+            self.app_status_bar.clear()
+
+        if self.license_info:
+            self.app_status_bar.set_license_info(
+                self.license_info.customer,
+                self.license_info.signature_valid,
+            )
+
+    def _on_agents_changed(self):
+        """Agents were added/removed/modified."""
+        self._update_dashboard()
+        self._update_status_bar()
+
+    # ──────────────────────────────────────────── Slots ──
 
     def on_new_project(self) -> None:
         dlg = ProjectWizard(self)
@@ -206,21 +266,31 @@ class MainWindow(QMainWindow):
             self.project = dlg.create_project()
             self.current_project_path = None
             self._ui_from_project()
-            self.statusBar().showMessage("New project created.", 3000)
+            self._navigate_to("agents")
 
     def on_open_project(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
-            self, "Open BusCraft Project", "", "BusCraft Project (*.uvmproj.json);;All Files (*.*)"
+            self, "Open BusCraft Project", "",
+            "BusCraft Project (*.uvmproj.json);;All Files (*.*)"
         )
         if not path:
             return
+        self._open_project_file(path)
+
+    def _open_project_file(self, path: str) -> None:
         try:
             self.project = load_project(path)
             self.current_project_path = Path(path)
             self._ui_from_project()
-            self.statusBar().showMessage(f"Opened project: {path}", 3000)
+            self._navigate_to("agents")
         except Exception as exc:
             QMessageBox.critical(self, "Error", f"Failed to open project:\n{exc}")
+
+    def _on_open_recent(self, path: str):
+        if Path(path).exists():
+            self._open_project_file(path)
+        else:
+            QMessageBox.warning(self, "Not Found", f"File not found:\n{path}")
 
     def on_save_project(self) -> None:
         if not self.project:
@@ -232,7 +302,6 @@ class MainWindow(QMainWindow):
         self._project_from_ui()
         try:
             save_project(self.project, self.current_project_path)
-            self.statusBar().showMessage(f"Project saved to {self.current_project_path}", 3000)
         except Exception as exc:
             QMessageBox.critical(self, "Error", f"Failed to save project:\n{exc}")
 
@@ -241,101 +310,113 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "No Project", "Create a project first.")
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save BusCraft Project As", "", "BusCraft Project (*.uvmproj.json);;All Files (*.*)"
+            self, "Save BusCraft Project As", "",
+            "BusCraft Project (*.uvmproj.json);;All Files (*.*)"
         )
         if not path:
             return
         self.current_project_path = Path(path)
         self.on_save_project()
 
-    def _on_browse_output(self) -> None:
-        directory = QFileDialog.getExistingDirectory(self, "Select Output Directory")
-        if directory:
-            self.ed_output.setText(directory)
-
     def on_generate_code(self) -> None:
         if not self.project:
             QMessageBox.warning(self, "No Project", "Create a project first.")
             return
         self._project_from_ui()
-        try:
-            gen = Generator(self.project, self.license_info)
-            paths = gen.generate_all()
-        except GenerationError as exc:
-            QMessageBox.critical(self, "Generation Error", str(exc))
-            return
-        except Exception as exc:
-            QMessageBox.critical(self, "Error", f"Unexpected error: {exc}")
-            return
-
-        msg = "Generated files:\n" + "\n".join(f"- {k}: {v}" for k, v in paths.items())
-        QMessageBox.information(self, "Generation Complete", msg)
-        self.statusBar().showMessage("Generation complete.", 3000)
+        dlg = GenerateDialog(self.project, self.license_info, parent=self)
+        dlg.exec()
 
     def on_generate_diagram(self) -> None:
         if not self.project:
             QMessageBox.warning(self, "No Project", "Create a project first.")
             return
         self._project_from_ui()
-        out_dir = Path(self.project.output_dir)
-        img_path = out_dir / "buscraft_diagram.png"
-        try:
-            result = generate_diagram(self.project, img_path)
-        except Exception as exc:
-            QMessageBox.critical(self, "Diagram Error", f"Failed to generate diagram:\n{exc}")
-            return
-
-        pixmap = QPixmap(result)
-        if pixmap.isNull():
-            self.diagram_label.setText(f"Diagram generated at:\n{result}")
-        else:
-            self.diagram_label.setPixmap(pixmap.scaled(
-                self.diagram_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
-            ))
-        self.statusBar().showMessage("Diagram generated.", 3000)
-
-    def resizeEvent(self, event) -> None:  # type: ignore[override]
-        super().resizeEvent(event)
-        pixmap = self.diagram_label.pixmap()
-        if pixmap:
-            self.diagram_label.setPixmap(
-                pixmap.scaled(
-                    self.diagram_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
-                )
-            )
+        self.visualize_panel.set_project(self.project)
+        self._navigate_to("visualize")
 
     def on_load_license(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
-            self, "Load BusCraft License", "", "License (*.json);;All Files (*.*)"
+            self, "Load BusCraft License", "",
+            "License (*.json);;All Files (*.*)"
         )
         if not path:
             return
         try:
             self.license_info = load_license(path)
-            self._update_license_view()
+            self.settings_panel.set_license_info(self.license_info)
+            self._update_status_bar()
             QMessageBox.information(self, "License Loaded", "License loaded successfully.")
         except Exception as exc:
             QMessageBox.critical(self, "Error", f"Failed to load license:\n{exc}")
 
-    def _update_license_view(self) -> None:
-        self.lic_text.setPlainText(get_license_summary(self.license_info))
-
-    def on_ai_generate(self) -> None:
-        if not self.project:
-            QMessageBox.warning(self, "No Project", "Create a project first.")
-            return
-        desc = self.ai_desc.toPlainText().strip()
-        if not desc:
-            return
-        current_cfg = self.project.to_dict()
-        new_cfg = self.ai_engine.generate_project_config(desc, current_cfg)
-        self.ai_log.append("AI stub processed description. Notes:")
-        for n in new_cfg.get("notes", []):
-            self.ai_log.append(f"- {n}")
+    def _on_license_changed(self, lic):
+        self.license_info = lic
+        self._update_status_bar()
 
     def on_about(self) -> None:
         QMessageBox.information(
-            self,
-            "About BusCraft",
-            "BusCraft\n\nUVM VIP/ BFMs generator prototype.",
+            self, "About BusCraft",
+            "BusCraft v0.1.0\n\n"
+            "UVM Verification Environment Generator\n\n"
+            "© 2024-2026 BusCraft",
         )
+
+    def on_protocol_browser(self) -> None:
+        dlg = ProtocolBrowserDialog(self)
+        dlg.exec()
+
+    def _on_spec_project_imported(self, project: Project) -> None:
+        self.project = project
+        self.current_project_path = None
+        self._ui_from_project()
+        self._navigate_to("agents")
+
+    def on_launch_waveform(self) -> None:
+        if not shutil.which("gtkwave"):
+            msg = "GTKWave is not installed or not in PATH."
+            if sys.platform == "darwin":
+                msg += "\n\nInstall with: brew install --cask gtkwave"
+            elif sys.platform == "linux":
+                msg += "\n\nInstall with: sudo apt install gtkwave"
+            QMessageBox.warning(self, "GTKWave Not Found", msg)
+            return
+
+        if not self.project:
+            QMessageBox.warning(self, "No Project", "Create a project first.")
+            return
+
+        self._project_from_ui()
+        search_dir = Path(self.project.output_dir)
+
+        if not search_dir.exists():
+            QMessageBox.warning(
+                self, "No Output",
+                f"Output directory does not exist yet:\n{search_dir}"
+            )
+            return
+
+        import os
+        vcd_files = list(search_dir.rglob("*.vcd"))
+        fst_files = list(search_dir.rglob("*.fst"))
+        all_waves = vcd_files + fst_files
+
+        if not all_waves:
+            QMessageBox.information(
+                self, "No Waveforms",
+                f"No .vcd or .fst files found in:\n{search_dir}\n\n"
+                "Run a simulation that dumps waveforms first."
+            )
+            return
+
+        target = str(max(all_waves, key=os.path.getmtime))
+
+        try:
+            subprocess.Popen(
+                ["gtkwave", target],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+        except Exception as exc:
+            QMessageBox.critical(
+                self, "GTKWave Error",
+                f"Failed to launch GTKWave:\n{exc}"
+            )
