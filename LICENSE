@@ -1,4 +1,27 @@
-BusCraft Prototype License
+BusCraft Prototype EULA
 --------------------------
 
-This is a placeholder license file for the BusCraft prototype.
+END-USER LICENSE AGREEMENT FOR BUSCRAFT
+
+IMPORTANT: PLEASE READ THIS END-USER LICENSE AGREEMENT ("EULA") CAREFULLY.
+
+This EULA is a legal agreement between you (either an individual or a single entity) and the developers of BusCraft.
+
+1. GRANT OF LICENSE
+This EULA grants you the right to use the BusCraft software ("Software") internally, for the sole purpose of evaluating or generating EDA workflows, provided you have a valid, signed license file.
+
+2. RESTRICTIONS
+You may NOT:
+a) Decompile, reverse engineer, disassemble, or otherwise attempt to derive the source code for the Software.
+b) Modify, translate, or create derivative works based on the Software.
+c) Rent, lease, distribute, or resell the Software.
+d) Bypass, modify, or defeat any licensing or security mechanisms in the Software.
+
+3. INTELLECTUAL PROPERTY
+All title and intellectual property rights in and to the Software are owned by the developers of BusCraft. The Software is licensed, not sold.
+
+4. NO WARRANTY
+THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESS OR IMPLIED. THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE SOFTWARE IS WITH YOU.
+
+5. LIMITATION OF LIABILITY
+IN NO EVENT WILL THE DEVELOPERS BE LIABLE FOR ANY DAMAGES, INCLUDING ANY LOST PROFITS, LOST SAVINGS, OR OTHER INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OR INABILITY TO USE THE SOFTWARE.
