@@ -1,47 +1,43 @@
 from __future__ import annotations
 import json
-import hmac
-import hashlib
+import base64
+import rsa
 from pathlib import Path
 from typing import Any, Dict, Union
 from .models import LicenseInfo, Project
 
-_SECRET = b"BUSCRAFT_DEMO_SECRET"
+_PUB_KEY_DATA = b"""-----BEGIN RSA PUBLIC KEY-----
+MIIBCgKCAQEAj518pPfAeWdt04ZLv6lL6pKWY7zHpHTSl/UYTwpNQDlGfpJaNwSa
+jmZWKbaZ53pjfiH9XsTVx3+T1KO7JRvbuZ6L4cXFR6rnumg+mffe9a+vpRqRB7QR
+qQMpEn9JR7Vgpx6fOCeKTJuJ/BKmn8T88eBj5zBQOoi8CGtpKAIcAao+sKXE2J+O
+M0zUpY8UNF/Re4DOYlN0lJESqMNs0BXwVoQZeFEdV+pcW4vclY4s5xXzu/++kkZd
+vprItTAID+daRzue2vQeFdvLcIydr/Ig7+ajRXyuO1kqUODQGZ4iFxW7yUFR+xSL
+gYukHIrHleprmzY5I4l0FrRbNbf3X7MQ2wIDAQAB
+-----END RSA PUBLIC KEY-----"""
 
+_PUB_KEY = rsa.PublicKey.load_pkcs1(_PUB_KEY_DATA)
 
-def _calc_signature(payload: Dict[str, Any]) -> str:
-    """Dummy HMAC-based signature over all fields except 'signature'."""
-    data = json.dumps(payload, sort_keys=True).encode("utf-8")
-    return hmac.new(_SECRET, data, hashlib.sha256).hexdigest()
-
+def _verify_signature(payload_dict: Dict[str, Any], signature_b64: str) -> bool:
+    if not signature_b64:
+        return False
+    try:
+        payload_bytes = json.dumps(payload_dict, sort_keys=True).encode("utf-8")
+        sig_bytes = base64.b64decode(signature_b64)
+        rsa.verify(payload_bytes, sig_bytes, _PUB_KEY)
+        return True
+    except Exception:
+        return False
 
 def load_license(path: Union[str, Path]) -> LicenseInfo:
     path = Path(path)
     with path.open("r", encoding="utf-8") as f:
         raw = json.load(f)
-
-    payload = {k: v for k, v in raw.items() if k != "signature"}
-    signature = raw.get("signature", "")
-    calc = _calc_signature(payload)
-    valid = signature == calc or signature == "DEMO"  # allow simple DEMO
-
-    lic = LicenseInfo(
-        customer=raw.get("customer", "UNKNOWN"),
-        valid_till=raw.get("valid_till", "2099-12-31"),
-        features=raw.get("features", {}),
-        limits=raw.get("limits", {}),
-        hostid=raw.get("hostid"),
-        raw_data=raw,
-        signature_valid=valid,
-    )
-    return lic
-
+    return load_license_from_dict(raw)
 
 def load_license_from_dict(raw: Dict[str, Any]) -> LicenseInfo:
     payload = {k: v for k, v in raw.items() if k != "signature"}
     signature = raw.get("signature", "")
-    calc = _calc_signature(payload)
-    valid = signature == calc or signature == "DEMO"
+    valid = _verify_signature(payload, signature)
 
     return LicenseInfo(
         customer=raw.get("customer", "UNKNOWN"),
@@ -53,23 +49,22 @@ def load_license_from_dict(raw: Dict[str, Any]) -> LicenseInfo:
         signature_valid=valid,
     )
 
-
 def create_demo_license() -> LicenseInfo:
     raw = {
-        "customer": "DEMO_USER",
+        "customer": "UNLICENSED_DEMO",
         "valid_till": "2099-12-31",
         "features": {
-            "amba_axi": True,
+            "amba_axi": False,
             "amba_apb": True,
-            "amba_ahb": True,
-            "amba_chi": True,
-            "serial_i2c": True,
+            "amba_ahb": False,
+            "amba_chi": False,
+            "serial_i2c": False,
             "generic_blank": True,
         },
-        "limits": {"max_agents": 128, "max_protocols_per_project": 32},
+        "limits": {"max_agents": 2, "max_protocols_per_project": 1},
         "hostid": None,
+        "signature": ""
     }
-    raw["signature"] = _calc_signature(raw)
     return load_license_from_dict(raw)
 
 
